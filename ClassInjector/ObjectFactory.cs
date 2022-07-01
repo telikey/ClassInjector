@@ -101,6 +101,14 @@ namespace ClassInjector
         {
             var types = defaultArgs.Select(x => x.GetType()).ToArray();
 
+            types=types.Select(x => {
+                if (x.Name == "RuntimeType")
+                {
+                    return x.BaseType.BaseType;
+                }
+                return x;
+            }).ToArray();
+
             ConstructorInfo[] constructors = type.GetConstructors();
             ConstructorInfo selectedConstructor = null;
 
@@ -113,7 +121,7 @@ namespace ClassInjector
 
             var listWithDefaults = listOfTypes.Where(x=>types.Except(x).Count()==0).ToList();
             var maxLengthList = listWithDefaults.MaxBy(x=>x.Length);
-            var typesToLoad = maxLengthList.Except(types);
+            var typesToLoad = maxLengthList!=null?maxLengthList.Except(types).ToArray():Array.Empty<Type>();
 
             bool BigOrDefault = true;
             foreach(var tp in typesToLoad)
@@ -126,7 +134,22 @@ namespace ClassInjector
 
             if (BigOrDefault)
             {
-                selectedConstructor = type.GetConstructor(maxLengthList);
+                if (maxLengthList != null)
+                {
+                    selectedConstructor = type.GetConstructor(maxLengthList);
+                }
+                else
+                {
+                    try
+                    {
+                        selectedConstructor = type.GetConstructor(types);
+                        BigOrDefault = false;
+                    }
+                    catch
+                    {
+
+                    }
+                }
             }
             else
             {
@@ -147,7 +170,15 @@ namespace ClassInjector
 
         private object[] GetArgs(ConstructorInfo constructor, object[] defaultArgs)
         {
-            var types = defaultArgs!=null?defaultArgs.Select(x => x.GetType()).ToArray():new object[0];
+            var types = defaultArgs!=null?defaultArgs.Select(x => x.GetType()).ToArray():new Type[0];
+            types = types.Select(x => {
+                if (x.Name == "RuntimeType")
+                {
+                    return x.BaseType.BaseType;
+                }
+                return x;
+            }).ToArray();
+
             var parametersInfo = constructor.GetParameters().Where(x=>!types.Contains(x.ParameterType)).ToArray();
 
             List<object> resList= new List<object>();

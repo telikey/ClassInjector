@@ -25,7 +25,7 @@ namespace ClassInjector
             return factory.GetObject(TInterface);
         }
 
-        public static dynamic GetObject<TInterface>()
+        public static TInterface GetObject<TInterface>()
         {
             var factory = _factory;
             return factory.GetObject<TInterface>();
