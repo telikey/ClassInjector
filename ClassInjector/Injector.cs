@@ -13,10 +13,10 @@ namespace ClassInjector
 
         private static IObjectFactory _factory = new ObjectFactory();
 
-        public static void Add<TInterface, TClass>(bool IsSingleton = false) where TClass : class, TInterface
+        public static void Add<TInterface, TClass>(object[] defaultValues=null,bool IsSingleton = false) where TClass : class, TInterface
         {
             var factory = _factory;
-            factory.Add<TInterface, TClass>(IsSingleton);
+            factory.Add<TInterface, TClass>(defaultValues, IsSingleton);
         }
 
         public static dynamic GetObject(Type TInterface)

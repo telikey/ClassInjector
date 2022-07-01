@@ -18,18 +18,20 @@ namespace ClassInjector
         public bool IsSingleton { get => _isSingleton; }
 
         private object _staticObject = null;
-        private Func<object> ObjectCreateFunc = null;
+        private object[] _defaultArgs = null;
+        private Func<object[], object> ObjectCreateFunc = null;
 
-        private Type ClassType = null;
+        private Type _classType = null;
 
         private InjectedItemFactory(){}
 
-        public static InjectedItemFactory Create<TInterface, TClass>(Func<object> ObjectCreateFunc,bool IsSingleton = false) where TClass : class, TInterface
+        public static InjectedItemFactory Create<TInterface, TClass>(Func<object[],object> ObjectCreateFunc,object[] defaultArgs,bool IsSingleton = false) where TClass : class, TInterface
         {
             var factory=new InjectedItemFactory();
             factory._isSingleton = IsSingleton;
             factory.ObjectCreateFunc= ObjectCreateFunc;
-            factory.ClassType = typeof(TClass);
+            factory._defaultArgs= defaultArgs;
+            factory._classType = typeof(TClass);
 
             return factory;
         }
@@ -40,15 +42,15 @@ namespace ClassInjector
             {
                 if (_staticObject != null)
                 {
-                    return Convert.ChangeType(_staticObject,ClassType);
+                    return Convert.ChangeType(_staticObject,_classType);
                 }
                 else
                 {
-                    _staticObject = Convert.ChangeType(ObjectCreateFunc.Invoke(), ClassType);
-                    return Convert.ChangeType(_staticObject, ClassType);
+                    _staticObject = Convert.ChangeType(ObjectCreateFunc.Invoke(_defaultArgs), _classType);
+                    return Convert.ChangeType(_staticObject, _classType);
                 }
             }
-            return Convert.ChangeType(ObjectCreateFunc.Invoke(), ClassType);
+            return Convert.ChangeType(ObjectCreateFunc.Invoke(_defaultArgs), _classType);
         }
     }
 }
