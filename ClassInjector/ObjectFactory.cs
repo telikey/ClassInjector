@@ -15,22 +15,20 @@ namespace ClassInjector
     {
         private static Dictionary<Type, IInjectedItemFactory> ObjectsDict=new Dictionary<Type, IInjectedItemFactory>();
 
-        public void Add<TInterface,TClass>(object[] defaultArgs=null,bool IsSingleton=false) where TClass : class, TInterface
+        public void Add<TInterface, TClass>(object[] defaultArgs = null, bool IsSingleton = false) where TClass : class, TInterface
         {
-            TClass FuncToCreateObject(object[] defaultArgs)
-            { 
-                if (GetConstructor(typeof(TClass), defaultArgs, out ConstructorInfo outConstructor))
-                {
-                    var args = GetArgs(outConstructor,defaultArgs);
-                    return outConstructor.Invoke(args) as TClass;
-                }
-                else
-                {
-                    return outConstructor.Invoke(defaultArgs) as TClass;
-                }
+            defaultArgs= defaultArgs ?? new object[0];
+            if (!ObjectsDict.ContainsKey(typeof(TInterface)))
+            {
+                var constructor = GetConstructor(typeof(TClass), defaultArgs);
+                var parameterValues = GetParameterValues(constructor, defaultArgs);
+                var item = InjectedItemFactory.Create<TInterface, TClass>(constructor, parameterValues, IsSingleton);
+                ObjectsDict.Add(typeof(TInterface), item);
             }
-            var item = InjectedItemFactory.Create<TInterface,TClass>(FuncToCreateObject, defaultArgs, IsSingleton);
-            ObjectsDict.Add(typeof(TInterface), item);
+            else
+            {
+                throw new InjectedItemIsAlreadyContains(typeof(TInterface));
+            }
         }
 
         public dynamic GetObject(Type TInterface)
@@ -57,110 +55,71 @@ namespace ClassInjector
             }
         }
 
-        private bool GetConstructor(Type type, object[] defaultArgs,out ConstructorInfo outConstructor)
+        private bool CheckConstructor(ConstructorInfo constructor,object[] defaultArgs)
         {
-            if (defaultArgs == null)
-            {
-                return GetConstructorWithoutDefaultArgs(type, out outConstructor);
-            }
-            else
-            {
-                return GetConstructorByDefaultArgs(type, defaultArgs, out outConstructor);
-            }
-        }
+            var parametersTypes = constructor
+                .GetParameters()
+                .Select(x => x.ParameterType).ToArray();
 
-        private bool GetConstructorWithoutDefaultArgs(Type type, out ConstructorInfo outConstructor)
-        {
-            var constructors = type.GetConstructors();
+            bool reFlag = true;
 
-            ConstructorInfo selectedConstructor = null;
-            var maxArgsCount = -1;
-            foreach (var constructor in constructors)
+            var defaultArgsCopy=defaultArgs;
+
+            foreach(var parameterType in parametersTypes)
             {
-                var count = constructor.GetParameters().Count();
-                if (maxArgsCount < count)
+                var flag = false;
+                foreach(var defaultArg in defaultArgsCopy)
                 {
-                    selectedConstructor = constructor;
-                    maxArgsCount = count;
+                    var defaultType = defaultArg.GetType();
+                    if (defaultType.IsAssignableTo(parameterType))
+                    {
+                        flag = true;
+                        defaultArgsCopy = defaultArgsCopy.Where(x=>x!=defaultArg).ToArray();
+                        break;
+                    }
+                }
+                if (flag)
+                {
+                    continue;
+                }
+
+                foreach(var containType in ObjectsDict)
+                {
+                    var type = containType.Key;
+                    if (type.IsAssignableTo(parameterType))
+                    {
+                        flag = true;
+                        break;
+                    }
+                }
+                if (!flag)
+                {
+                    reFlag = false;
+                    break;
                 }
             }
-
-
-            if (selectedConstructor != null)
-            {
-                outConstructor= selectedConstructor;
-                return true;
-            }
-            else
-            {
-                throw new NoConstructorException(type);
-            }
+            return reFlag;
         }
 
-        private bool GetConstructorByDefaultArgs(Type type,object[] defaultArgs, out ConstructorInfo outConstructor)
+        private ConstructorInfo GetConstructor(Type type, object[] defaultArgs)
         {
-            var types = defaultArgs.Select(x => x.GetType()).ToArray();
+            var constructors = type.GetConstructors().OrderByDescending(x=>x.GetParameters().Length);
 
-            types=types.Select(x => {
-                if (x.Name == "RuntimeType")
-                {
-                    return x.BaseType.BaseType;
-                }
-                return x;
-            }).ToArray();
-
-            ConstructorInfo[] constructors = type.GetConstructors();
             ConstructorInfo selectedConstructor = null;
-
-            List<Type[]> listOfTypes = new List<Type[]>();
 
             foreach(var constructor in constructors)
             {
-                listOfTypes.Add(constructor.GetParameters().Select(x=>x.ParameterType).ToArray());
-            }
-
-            var listWithDefaults = listOfTypes.Where(x=>types.Except(x).Count()==0).ToList();
-            var maxLengthList = listWithDefaults.MaxBy(x=>x.Length);
-            var typesToLoad = maxLengthList!=null?maxLengthList.Except(types).ToArray():Array.Empty<Type>();
-
-            bool BigOrDefault = true;
-            foreach(var tp in typesToLoad)
-            {
-                if (!ObjectsDict.ContainsKey(tp))
+                if(CheckConstructor(constructor,defaultArgs))
                 {
-                    BigOrDefault = false;
+                    selectedConstructor= constructor;
+                    break;
                 }
             }
 
-            if (BigOrDefault)
-            {
-                if (maxLengthList != null)
-                {
-                    selectedConstructor = type.GetConstructor(maxLengthList);
-                }
-                else
-                {
-                    try
-                    {
-                        selectedConstructor = type.GetConstructor(types);
-                        BigOrDefault = false;
-                    }
-                    catch
-                    {
-
-                    }
-                }
-            }
-            else
-            {
-                selectedConstructor = type.GetConstructor(types);
-            }
 
             if (selectedConstructor != null)
             {
-
-                outConstructor = selectedConstructor;
-                return BigOrDefault;
+                return selectedConstructor;
             }
             else
             {
@@ -168,34 +127,46 @@ namespace ClassInjector
             }
         }
 
-        private object[] GetArgs(ConstructorInfo constructor, object[] defaultArgs)
+        private object GetParameter(ParameterInfo parameterInfo, object[] defaultArgs)
         {
-            var types = defaultArgs!=null?defaultArgs.Select(x => x.GetType()).ToArray():new Type[0];
-            types = types.Select(x => {
-                if (x.Name == "RuntimeType")
-                {
-                    return x.BaseType.BaseType;
-                }
-                return x;
-            }).ToArray();
+            var parameterType = parameterInfo.ParameterType;
 
-            var parametersInfo = constructor.GetParameters().Where(x=>!types.Contains(x.ParameterType)).ToArray();
+            var defaultArgsCopy = defaultArgs;
+
+            object value = null;
+            foreach (var defaultArg in defaultArgsCopy)
+            {
+                var defaultType = defaultArg.GetType();
+                if (defaultType.IsAssignableTo(parameterType))
+                {
+                    value = defaultArg;
+                }
+            }
+
+            if (value != null)
+            {
+                foreach (var containType in ObjectsDict)
+                {
+                    var type = containType.Key;
+                    if (type.IsAssignableTo(parameterType))
+                    {
+                        value = ObjectsDict[type].CreateObject();
+                    }
+                }
+            }
+
+            return value;
+        }
+
+        private object[] GetParameterValues(ConstructorInfo constructor, object[] defaultArgs)
+        {
+            var parametersInfo = constructor.GetParameters();
 
             List<object> resList= new List<object>();
             foreach(var parameterInfo in parametersInfo)
             {
-                if (ObjectsDict.ContainsKey(parameterInfo.ParameterType))
-                {
-                    var factory = ObjectsDict[parameterInfo.ParameterType];
-                    resList.Add(factory.CreateObject());
-                }
-                else
-                {
-                    throw new NoInjectedItemWhenConstruct(parameterInfo.ParameterType,constructor.DeclaringType);
-                }
+                resList.Add(GetParameter(parameterInfo,defaultArgs));
             }
-
-            resList.AddRange(defaultArgs != null ? defaultArgs : new object[0]);
 
             return resList.ToArray();
         }

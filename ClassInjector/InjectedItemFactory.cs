@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -18,19 +19,19 @@ namespace ClassInjector
         public bool IsSingleton { get => _isSingleton; }
 
         private object _staticObject = null;
-        private object[] _defaultArgs = null;
-        private Func<object[], object> ObjectCreateFunc = null;
+        private object[] _parametersValues = null;
+        private ConstructorInfo _constructor = null;
 
         private Type _classType = null;
 
         private InjectedItemFactory(){}
 
-        public static InjectedItemFactory Create<TInterface, TClass>(Func<object[],object> ObjectCreateFunc,object[] defaultArgs,bool IsSingleton = false) where TClass : class, TInterface
+        public static InjectedItemFactory Create<TInterface, TClass>(ConstructorInfo constructor,object[] parametersValues,bool IsSingleton = false) where TClass : class, TInterface
         {
             var factory=new InjectedItemFactory();
             factory._isSingleton = IsSingleton;
-            factory.ObjectCreateFunc= ObjectCreateFunc;
-            factory._defaultArgs= defaultArgs;
+            factory._constructor= constructor;
+            factory._parametersValues= parametersValues;
             factory._classType = typeof(TClass);
 
             return factory;
@@ -42,15 +43,15 @@ namespace ClassInjector
             {
                 if (_staticObject != null)
                 {
-                    return Convert.ChangeType(_staticObject,_classType);
+                    return _staticObject;
                 }
                 else
                 {
-                    _staticObject = Convert.ChangeType(ObjectCreateFunc.Invoke(_defaultArgs), _classType);
+                    _staticObject = _constructor.Invoke(_parametersValues);
                     return Convert.ChangeType(_staticObject, _classType);
                 }
             }
-            return Convert.ChangeType(ObjectCreateFunc.Invoke(_defaultArgs), _classType);
+            return _constructor.Invoke(_parametersValues);
         }
     }
 }
