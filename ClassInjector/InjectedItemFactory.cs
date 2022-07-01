@@ -31,10 +31,6 @@ namespace ClassInjector
             factory.ObjectCreateFunc= ObjectCreateFunc;
             factory.ClassType = typeof(TClass);
 
-            if (factory.IsSingleton)
-            {
-                factory._staticObject = factory.CreateObject();
-            }
             return factory;
         }
 
@@ -45,6 +41,11 @@ namespace ClassInjector
                 if (_staticObject != null)
                 {
                     return Convert.ChangeType(_staticObject,ClassType);
+                }
+                else
+                {
+                    _staticObject = Convert.ChangeType(ObjectCreateFunc.Invoke(), ClassType);
+                    return Convert.ChangeType(_staticObject, ClassType);
                 }
             }
             return Convert.ChangeType(ObjectCreateFunc.Invoke(), ClassType);

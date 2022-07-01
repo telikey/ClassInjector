@@ -7,9 +7,11 @@ namespace ClassInjector
     public interface IObjectFactory
     {
         void Add<TInterface, TClass>(bool IsSingleton = false) where TClass : class, TInterface;
+        dynamic GetObject(Type TInterface);
+        dynamic GetObject<TInterface>();
     }
 
-    public class ObjectFactory:IObjectFactory
+    internal class ObjectFactory:IObjectFactory
     {
         private static Dictionary<Type, IInjectedItemFactory> ObjectsDict=new Dictionary<Type, IInjectedItemFactory>();
 
@@ -17,10 +19,24 @@ namespace ClassInjector
         {
             TClass FuncToCreateObject(){ 
                 var constructor= GetConstructor(typeof(TClass));
+                var args = GetArgs(constructor);
 
-                return constructor.Invoke(GetArgs(constructor)) as TClass;
+                return constructor.Invoke(args) as TClass;
             }
             var item = InjectedItemFactory.Create<TInterface,TClass>(FuncToCreateObject, IsSingleton);
+            ObjectsDict.Add(typeof(TInterface), item);
+        }
+
+        public dynamic GetObject(Type TInterface)
+        {
+            if (ObjectsDict.ContainsKey(TInterface))
+            {
+                return ObjectsDict[TInterface].CreateObject();
+            }
+            else
+            {
+                throw new NoInjectedItem(TInterface);
+            }
         }
 
         public dynamic GetObject<TInterface>()
@@ -40,7 +56,7 @@ namespace ClassInjector
             var constructors = type.GetConstructors();
 
             ConstructorInfo selectedConstructor = null;
-            var maxArgsCount = 0;
+            var maxArgsCount = -1;
             foreach(var constructor in constructors)
             {
                 var count = constructor.GetParameters().Count();
@@ -77,7 +93,7 @@ namespace ClassInjector
                 }
             }
 
-            return constructor.GetParameters();
+            return resList.ToArray();
         }
     }
 }
