@@ -143,7 +143,7 @@ namespace ClassInjector
                 }
             }
 
-            if (value != null)
+            if (value == null)
             {
                 foreach (var containType in ObjectsDict)
                 {
