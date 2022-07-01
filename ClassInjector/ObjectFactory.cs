@@ -11,13 +11,13 @@ namespace ClassInjector
         dynamic GetObject<TInterface>();
     }
 
-    public class ObjectFactory:IObjectFactory
+    public class ObjectFactory : IObjectFactory
     {
-        private static Dictionary<Type, IInjectedItemFactory> ObjectsDict=new Dictionary<Type, IInjectedItemFactory>();
+        private static Dictionary<Type, IInjectedItemFactory> ObjectsDict = new Dictionary<Type, IInjectedItemFactory>();
 
         public void Add<TInterface, TClass>(object[] defaultArgs = null, bool IsSingleton = false) where TClass : class, TInterface
         {
-            defaultArgs= defaultArgs ?? new object[0];
+            defaultArgs = defaultArgs ?? new object[0];
             if (!ObjectsDict.ContainsKey(typeof(TInterface)))
             {
                 var constructor = GetConstructor(typeof(TClass), defaultArgs);
@@ -55,7 +55,7 @@ namespace ClassInjector
             }
         }
 
-        private bool CheckConstructor(ConstructorInfo constructor,object[] defaultArgs)
+        private bool CheckConstructor(ConstructorInfo constructor, object[] defaultArgs)
         {
             var parametersTypes = constructor
                 .GetParameters()
@@ -63,18 +63,18 @@ namespace ClassInjector
 
             bool reFlag = true;
 
-            var defaultArgsCopy=defaultArgs;
+            var defaultArgsCopy = defaultArgs;
 
-            foreach(var parameterType in parametersTypes)
+            foreach (var parameterType in parametersTypes)
             {
                 var flag = false;
-                foreach(var defaultArg in defaultArgsCopy)
+                foreach (var defaultArg in defaultArgsCopy)
                 {
                     var defaultType = defaultArg.GetType();
                     if (defaultType.IsAssignableTo(parameterType))
                     {
                         flag = true;
-                        defaultArgsCopy = defaultArgsCopy.Where(x=>x!=defaultArg).ToArray();
+                        defaultArgsCopy = defaultArgsCopy.Where(x => x != defaultArg).ToArray();
                         break;
                     }
                 }
@@ -83,7 +83,7 @@ namespace ClassInjector
                     continue;
                 }
 
-                foreach(var containType in ObjectsDict)
+                foreach (var containType in ObjectsDict)
                 {
                     var type = containType.Key;
                     if (type.IsAssignableTo(parameterType))
@@ -103,15 +103,15 @@ namespace ClassInjector
 
         private ConstructorInfo GetConstructor(Type type, object[] defaultArgs)
         {
-            var constructors = type.GetConstructors().OrderByDescending(x=>x.GetParameters().Length);
+            var constructors = type.GetConstructors().OrderByDescending(x => x.GetParameters().Length);
 
             ConstructorInfo selectedConstructor = null;
 
-            foreach(var constructor in constructors)
+            foreach (var constructor in constructors)
             {
-                if(CheckConstructor(constructor,defaultArgs))
+                if (CheckConstructor(constructor, defaultArgs))
                 {
-                    selectedConstructor= constructor;
+                    selectedConstructor = constructor;
                     break;
                 }
             }
@@ -127,48 +127,47 @@ namespace ClassInjector
             }
         }
 
-        private object GetParameter(ParameterInfo parameterInfo, object[] defaultArgs)
+        private object[] GetParameters(ParameterInfo[] parameterInfo, object[] defaultArgs)
         {
-            var parameterType = parameterInfo.ParameterType;
-
             var defaultArgsCopy = defaultArgs;
-
-            object value = null;
-            foreach (var defaultArg in defaultArgsCopy)
+            var parametersTypes = parameterInfo.Select(x => x.ParameterType).ToArray();
+            List<object> values = new List<object>();
+            foreach (var parameterType in parametersTypes)
             {
-                var defaultType = defaultArg.GetType();
-                if (defaultType.IsAssignableTo(parameterType))
+                object value = null;
+                foreach (var defaultArg in defaultArgsCopy)
                 {
-                    value = defaultArg;
-                }
-            }
-
-            if (value == null)
-            {
-                foreach (var containType in ObjectsDict)
-                {
-                    var type = containType.Key;
-                    if (type.IsAssignableTo(parameterType))
+                    var defaultType = defaultArg.GetType();
+                    if (defaultType.IsAssignableTo(parameterType))
                     {
-                        value = ObjectsDict[type].CreateObject();
+                        value=defaultArg;
+                        defaultArgsCopy = defaultArgsCopy.Where(x => x != defaultArg).ToArray();
+                        break;
                     }
                 }
+
+                if (value == null)
+                {
+                    foreach (var containType in ObjectsDict)
+                    {
+                        var type = containType.Key;
+                        if (type.IsAssignableTo(parameterType))
+                        {
+                            value = ObjectsDict[type].CreateObject();
+                        }
+                    }
+                }
+                values.Add(value);
             }
 
-            return value;
+            return values.ToArray();
         }
 
         private object[] GetParameterValues(ConstructorInfo constructor, object[] defaultArgs)
         {
             var parametersInfo = constructor.GetParameters();
 
-            List<object> resList= new List<object>();
-            foreach(var parameterInfo in parametersInfo)
-            {
-                resList.Add(GetParameter(parameterInfo,defaultArgs));
-            }
-
-            return resList.ToArray();
+            return GetParameters(parametersInfo, defaultArgs);
         }
     }
 }
