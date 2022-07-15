@@ -148,11 +148,26 @@ namespace ClassInjector
 
                 if (value == null)
                 {
-                    foreach (var containType in ObjectsDict)
+                    var finds = ObjectsDict.Where(x=> x.Key.IsAssignableTo(parameterType)).ToArray();
+                    if (finds.Length > 1)
                     {
-                        var type = containType.Key;
-                        if (type.IsAssignableTo(parameterType))
+                        var eqFind=finds.Where(x=>x.Key== parameterType).ToArray();
+                        if (eqFind.Length > 0)
                         {
+                            var type = eqFind[0].Key;
+                            value = ObjectsDict[type].CreateObject();
+                        }
+                        else
+                        {
+                            var type = finds[0].Key;
+                            value = ObjectsDict[type].CreateObject();
+                        }
+                    }
+                    else
+                    {
+                        if (finds.Length == 1)
+                        {
+                            var type=finds[0].Key;
                             value = ObjectsDict[type].CreateObject();
                         }
                     }
