@@ -4,7 +4,7 @@ ___
 Использование при запуске приложения:
 - Создание связки:
 ```c#
-Injector.Add<Interface, Class>(new object[]{""}/null, true/false);
+Injector.Add<Interface, Class>(new object[]{ }/null, true/false);
 
 Где первый параметр: объекты для внедрения в конструктор не добавленные в связки.
 Второй параметр: Объекты создавать по правилу Singleton или нет
